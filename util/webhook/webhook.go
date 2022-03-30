@@ -14,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/go-playground/webhooks.v5/bitbucket"
 	bitbucketserver "gopkg.in/go-playground/webhooks.v5/bitbucket-server"
+	"gopkg.in/go-playground/webhooks.v5/gitea"
 	"gopkg.in/go-playground/webhooks.v5/github"
 	"gopkg.in/go-playground/webhooks.v5/gitlab"
 	"gopkg.in/go-playground/webhooks.v5/gogs"
@@ -47,6 +48,7 @@ type ArgoCDWebhookHandler struct {
 	bitbucket       *bitbucket.Webhook
 	bitbucketserver *bitbucketserver.Webhook
 	gogs            *gogs.Webhook
+	gitea           *gitea.Webhook
 	settingsSrc     settingsSource
 }
 
@@ -71,6 +73,10 @@ func NewHandler(namespace string, appClientset appclientset.Interface, set *sett
 	if err != nil {
 		log.Warnf("Unable to init the Gogs webhook")
 	}
+	giteaWebhook, err := gitea.New(gitea.Options.Secret(set.WebhookGiteaSecret))
+	if err != nil {
+		log.Warnf("Unable to init the Gitea webhook")
+	}
 
 	acdWebhook := ArgoCDWebhookHandler{
 		ns:              namespace,
@@ -80,6 +86,7 @@ func NewHandler(namespace string, appClientset appclientset.Interface, set *sett
 		bitbucket:       bitbucketWebhook,
 		bitbucketserver: bitbucketserverWebhook,
 		gogs:            gogsWebhook,
+		gitea:           giteaWebhook,
 		settingsSrc:     settingsSrc,
 		repoCache:       repoCache,
 		serverCache:     serverCache,
@@ -180,6 +187,18 @@ func affectedRevisionInfo(payloadIf interface{}) (webURLs []string, revision str
 		// so we cannot update changedFiles for this type of payload
 
 	case gogsclient.PushPayload:
+		webURLs = append(webURLs, payload.Repo.HTMLURL)
+		revision = parseRevision(payload.Ref)
+		change.shaAfter = parseRevision(payload.After)
+		change.shaBefore = parseRevision(payload.Before)
+		touchedHead = bool(payload.Repo.DefaultBranch == revision)
+		for _, commit := range payload.Commits {
+			changedFiles = append(changedFiles, commit.Added...)
+			changedFiles = append(changedFiles, commit.Modified...)
+			changedFiles = append(changedFiles, commit.Removed...)
+		}
+
+	case gitea.PushPayload:
 		webURLs = append(webURLs, payload.Repo.HTMLURL)
 		revision = parseRevision(payload.Ref)
 		change.shaAfter = parseRevision(payload.After)
@@ -381,6 +400,9 @@ func (a *ArgoCDWebhookHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	switch {
+	//Gitea needs to be checked before Gogs and Github since it carries Gitea, Gogs and (incompatible) GitHub headers
+	case r.Header.Get("X-Gitea-Event") != "":
+		payload, err = a.gitea.Parse(r, gitea.PushEvent)
 	//Gogs needs to be checked before GitHub since it carries both Gogs and (incompatible) GitHub headers
 	case r.Header.Get("X-Gogs-Event") != "":
 		payload, err = a.gogs.Parse(r, gogs.PushEvent)

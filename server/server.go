@@ -440,6 +440,7 @@ func (a *ArgoCDServer) watchSettings() {
 	prevBitbucketUUID := a.settings.WebhookBitbucketUUID
 	prevBitbucketServerSecret := a.settings.WebhookBitbucketServerSecret
 	prevGogsSecret := a.settings.WebhookGogsSecret
+	prevGiteaSecret := a.settings.WebhookGiteaSecret
 	var prevCert, prevCertKey string
 	if a.settings.Certificate != nil && !a.ArgoCDServerOpts.Insecure {
 		prevCert, prevCertKey = tlsutil.EncodeX509KeyPairString(*a.settings.Certificate)
@@ -480,6 +481,10 @@ func (a *ArgoCDServer) watchSettings() {
 		}
 		if prevGogsSecret != a.settings.WebhookGogsSecret {
 			log.Infof("gogs secret modified. restarting")
+			break
+		}
+		if prevGiteaSecret != a.settings.WebhookGiteaSecret {
+			log.Infof("gitea secret modified. restarting")
 			break
 		}
 		if !a.ArgoCDServerOpts.Insecure {

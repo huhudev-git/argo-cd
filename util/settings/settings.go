@@ -71,6 +71,8 @@ type ArgoCDSettings struct {
 	WebhookBitbucketServerSecret string `json:"webhookBitbucketServerSecret,omitempty"`
 	// WebhookGogsSecret holds the shared secret for authenticating Gogs webhook events
 	WebhookGogsSecret string `json:"webhookGogsSecret,omitempty"`
+	// WebhookGiteaSecret holds the shared secret for authenticating Gitea webhook events
+	WebhookGiteaSecret string `json:"webhookGiteaSecret,omitempty"`
 	// Secrets holds all secrets in argocd-secret as a map[string]string
 	Secrets map[string]string `json:"secrets,omitempty"`
 	// KustomizeBuildOptions is a string of kustomize build parameters
@@ -344,6 +346,8 @@ const (
 	settingsWebhookBitbucketServerSecretKey = "webhook.bitbucketserver.secret"
 	// settingsWebhookGogsSecret is the key for Gogs webhook secret
 	settingsWebhookGogsSecretKey = "webhook.gogs.secret"
+	// settingsWebhookGiteaSecretKey is the key for Gitea webhook secret
+	settingsWebhookGiteaSecretKey = "webhook.gitea.secret"
 	// settingsApplicationInstanceLabelKey is the key to configure injected app instance label key
 	settingsApplicationInstanceLabelKey = "application.instanceLabelKey"
 	// settingsResourceTrackingMethodKey is the key to configure tracking method for application resources
@@ -1289,6 +1293,9 @@ func (mgr *SettingsManager) updateSettingsFromSecret(settings *ArgoCDSettings, a
 	if gogsWebhookSecret := argoCDSecret.Data[settingsWebhookGogsSecretKey]; len(gogsWebhookSecret) > 0 {
 		settings.WebhookGogsSecret = string(gogsWebhookSecret)
 	}
+	if giteaWebhookSecret := argoCDSecret.Data[settingsWebhookGiteaSecretKey]; len(giteaWebhookSecret) > 0 {
+		settings.WebhookGiteaSecret = string(giteaWebhookSecret)
+	}
 
 	// The TLS certificate may be externally managed. We try to load it from an
 	// external secret first. If the external secret doesn't exist, we either
@@ -1407,6 +1414,9 @@ func (mgr *SettingsManager) SaveSettings(settings *ArgoCDSettings) error {
 		}
 		if settings.WebhookGogsSecret != "" {
 			argoCDSecret.Data[settingsWebhookGogsSecretKey] = []byte(settings.WebhookGogsSecret)
+		}
+		if settings.WebhookGiteaSecret != "" {
+			argoCDSecret.Data[settingsWebhookGiteaSecretKey] = []byte(settings.WebhookGiteaSecret)
 		}
 		// we only write the certificate to the secret if it's not externally
 		// managed.

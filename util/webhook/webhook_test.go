@@ -13,6 +13,7 @@ import (
 	gogsclient "github.com/gogits/go-gogs-client"
 	"gopkg.in/go-playground/webhooks.v5/bitbucket"
 	bitbucketserver "gopkg.in/go-playground/webhooks.v5/bitbucket-server"
+	"gopkg.in/go-playground/webhooks.v5/gitea"
 	"gopkg.in/go-playground/webhooks.v5/github"
 	"gopkg.in/go-playground/webhooks.v5/gitlab"
 
@@ -130,6 +131,22 @@ func TestGogsPushEvent(t *testing.T) {
 	h.Handler(w, req)
 	assert.Equal(t, w.Code, http.StatusOK)
 	expectedLogResult := "Received push event repo: http://gogs-server/john/repo-test, revision: master, touchedHead: true"
+	assert.Equal(t, expectedLogResult, hook.LastEntry().Message)
+	hook.Reset()
+}
+
+func TestGiteaPushEvent(t *testing.T) {
+	hook := test.NewGlobal()
+	h := NewMockHandler()
+	req := httptest.NewRequest("POST", "/api/webhook", nil)
+	req.Header.Set("X-Gitea-Event", "push")
+	eventJSON, err := ioutil.ReadFile("gitea-event.json")
+	assert.NoError(t, err)
+	req.Body = ioutil.NopCloser(bytes.NewReader(eventJSON))
+	w := httptest.NewRecorder()
+	h.Handler(w, req)
+	assert.Equal(t, w.Code, http.StatusOK)
+	expectedLogResult := "Received push event repo: http://gitea-server/example/example, revision: master, touchedHead: true"
 	assert.Equal(t, expectedLogResult, hook.LastEntry().Message)
 	hook.Reset()
 }
@@ -325,6 +342,12 @@ func Test_affectedRevisionInfo_appRevisionHasChanged(t *testing.T) {
 		return gogsclient.PushPayload{Ref: "refs/heads/" + branchName, Repo: &gogsclient.Repository{}}
 	}
 
+	giteaPushPayload := func(branchName string) gitea.PushPayload {
+		// This payload's "ref" member seems to always have the full git ref (based on the example payload).
+		// https://docs.gitea.io/en-us/webhooks/
+		return gitea.PushPayload{Ref: "refs/heads/" + branchName, Repo: &gitea.Repository{}}
+	}
+
 	tests := []struct {
 		hasChanged     bool
 		targetRevision string
@@ -359,12 +382,14 @@ func Test_affectedRevisionInfo_appRevisionHasChanged(t *testing.T) {
 		{true, "has/slashes", bitbucketPushPayload("has/slashes"), "bitbucket push branch name with slashes, targetRevision not prefixed"},
 		{true, "has/slashes", bitbucketRefChangedPayload("has/slashes"), "bitbucket ref changed branch name with slashes, targetRevision not prefixed"},
 		{true, "has/slashes", gogsPushPayload("has/slashes"), "gogs push branch name with slashes, targetRevision not prefixed"},
+		{true, "has/slashes", giteaPushPayload("has/slashes"), "gitea push branch name with slashes, targetRevision not prefixed"},
 
 		{true, "refs/heads/has/slashes", githubPushPayload("has/slashes"), "github push branch name with slashes, targetRevision branch prefixed"},
 		{true, "refs/heads/has/slashes", gitlabPushPayload("has/slashes"), "gitlab push branch name with slashes, targetRevision branch prefixed"},
 		{true, "refs/heads/has/slashes", bitbucketPushPayload("has/slashes"), "bitbucket push branch name with slashes, targetRevision branch prefixed"},
 		{true, "refs/heads/has/slashes", bitbucketRefChangedPayload("has/slashes"), "bitbucket ref changed branch name with slashes, targetRevision branch prefixed"},
 		{true, "refs/heads/has/slashes", gogsPushPayload("has/slashes"), "gogs push branch name with slashes, targetRevision branch prefixed"},
+		{true, "refs/heads/has/slashes", giteaPushPayload("has/slashes"), "gitea push branch name with slashes, targetRevision branch prefixed"},
 
 		// Not testing for refs/tags/has/slashes, because apparently tags can't have slashes: https://stackoverflow.com/a/32850142/684776
 
@@ -374,6 +399,7 @@ func Test_affectedRevisionInfo_appRevisionHasChanged(t *testing.T) {
 		{true, "no-slashes", bitbucketPushPayload("no-slashes"), "bitbucket push branch or tag name without slashes, targetRevision not prefixed"},
 		{true, "no-slashes", bitbucketRefChangedPayload("no-slashes"), "bitbucket ref changed branch or tag name without slashes, targetRevision not prefixed"},
 		{true, "no-slashes", gogsPushPayload("no-slashes"), "gogs push branch or tag name without slashes, targetRevision not prefixed"},
+		{true, "no-slashes", giteaPushPayload("no-slashes"), "gitea push branch or tag name without slashes, targetRevision not prefixed"},
 
 		{true, "refs/heads/no-slashes", githubPushPayload("no-slashes"), "github push branch or tag name without slashes, targetRevision branch prefixed"},
 		{true, "refs/heads/no-slashes", gitlabTagPayload("no-slashes"), "gitlab tag branch or tag name without slashes, targetRevision branch prefixed"},
@@ -381,6 +407,7 @@ func Test_affectedRevisionInfo_appRevisionHasChanged(t *testing.T) {
 		{true, "refs/heads/no-slashes", bitbucketPushPayload("no-slashes"), "bitbucket push branch or tag name without slashes, targetRevision branch prefixed"},
 		{true, "refs/heads/no-slashes", bitbucketRefChangedPayload("no-slashes"), "bitbucket ref changed branch or tag name without slashes, targetRevision branch prefixed"},
 		{true, "refs/heads/no-slashes", gogsPushPayload("no-slashes"), "gogs push branch or tag name without slashes, targetRevision branch prefixed"},
+		{true, "refs/heads/no-slashes", giteaPushPayload("no-slashes"), "gitea push branch or tag name without slashes, targetRevision branch prefixed"},
 
 		{true, "refs/tags/no-slashes", githubPushPayload("no-slashes"), "github push branch or tag name without slashes, targetRevision tag prefixed"},
 		{true, "refs/tags/no-slashes", gitlabTagPayload("no-slashes"), "gitlab tag branch or tag name without slashes, targetRevision tag prefixed"},
@@ -388,6 +415,7 @@ func Test_affectedRevisionInfo_appRevisionHasChanged(t *testing.T) {
 		{true, "refs/tags/no-slashes", bitbucketPushPayload("no-slashes"), "bitbucket push branch or tag name without slashes, targetRevision tag prefixed"},
 		{true, "refs/tags/no-slashes", bitbucketRefChangedPayload("no-slashes"), "bitbucket ref changed branch or tag name without slashes, targetRevision tag prefixed"},
 		{true, "refs/tags/no-slashes", gogsPushPayload("no-slashes"), "gogs push branch or tag name without slashes, targetRevision tag prefixed"},
+		{true, "refs/tags/no-slashes", giteaPushPayload("no-slashes"), "gitea push branch or tag name without slashes, targetRevision tag prefixed"},
 	}
 	for _, testCase := range tests {
 		testCopy := testCase

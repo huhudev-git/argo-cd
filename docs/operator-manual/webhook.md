@@ -4,7 +4,7 @@
 
 Argo CD polls Git repositories every three minutes to detect changes to the manifests. To eliminate
 this delay from polling, the API server can be configured to receive webhook events. Argo CD supports
-Git webhook notifications from GitHub, GitLab, Bitbucket, Bitbucket Server and Gogs. The following explains how to configure
+Git webhook notifications from GitHub, GitLab, Bitbucket, Bitbucket Server, Gogs and Gitea. The following explains how to configure
 a Git webhook for GitHub, but the same process should be applicable to other providers.
 
 !!! note
@@ -42,6 +42,7 @@ provider's webhook secret configured in step 1.
 | BitBucket       | `webhook.bitbucket.uuid`         |
 | BitBucketServer | `webhook.bitbucketserver.secret` |
 | Gogs            | `webhook.gogs.secret`            |
+| Gitea            | `webhook.gitea.secret`            |
 
 Edit the Argo CD kubernetes secret:
 
@@ -79,6 +80,9 @@ stringData:
 
   # gogs server webhook secret
   webhook.gogs.secret: shhhh! it's a gogs server secret
+
+  # gitea server webhook secret
+  webhook.gitea.secret: shhhh! it's a gitea server secret
 ```
 
 After saving, the changes should take effect automatically.
